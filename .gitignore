@@ -2,7 +2,7 @@
 *.jpeg
 *.png
 *.csv
-
+*.parquet
 
 
 # Byte-compiled / optimized / DLL files
