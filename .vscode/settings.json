@@ -1,0 +1,23 @@
+{
+  "files.watcherExclude": {
+    "**/data/**": true,
+    "**/data/raw_data/**": true,
+    "**/data/**/images/**": true,
+    "**/*.parquet": true
+  },
+  "search.exclude": {
+    "**/data/**": true,
+    "**/data/raw_data/**": true,
+    "**/data/**/images/**": true,
+    "**/*.parquet": true
+  },
+  "files.exclude": {
+    "**/data/**": true
+  },
+  "git.ignoredRepositories": [
+    "**/data/**"
+  ],
+  "copilot.exclude": [
+    "**/data/**"    
+  ]
+}
