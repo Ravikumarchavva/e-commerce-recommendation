@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>AI Product Search</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f5f7fa;margin:0}
+header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:20px;text-align:center}
+header h1{margin:0;font-size:28px;font-weight:700}
+header p{margin:5px 0 0;opacity:0.9;font-size:14px}
+
+#search-section{background:white;padding:20px;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+#search-tabs{display:flex;gap:10px;margin-bottom:15px}
+.tab{padding:10px 20px;background:#f1f5f9;border:none;border-radius:6px;cursor:pointer;font-weight:600;transition:.2s}
+.tab.active{background:#667eea;color:white}
+
+#text-search{display:block}
+#image-search{display:none}
+#multimodal-search{display:none}
+
+.search-box{display:flex;gap:10px;margin-bottom:15px}
+#searchInput{flex:1;padding:12px;border:2px solid #e2e8f0;border-radius:8px;font-size:15px}
+#searchBtn{padding:12px 30px;background:#667eea;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;transition:.2s}
+#searchBtn:hover{background:#5568d3}
+
+#imageInput{padding:10px;border:2px dashed #cbd5e1;border-radius:8px;cursor:pointer;width:100%}
+#imagePreview,#multimodalImagePreview{max-width:200px;max-height:200px;margin:10px 0;border-radius:8px;display:none}
+#multimodalImageInput{padding:10px;border:2px dashed #cbd5e1;border-radius:8px;cursor:pointer;width:100%;margin-bottom:10px}
+
+#filters{display:flex;gap:10px;flex-wrap:wrap}
+select,input{padding:10px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px}
+
+#results-info{padding:15px 20px;background:#ecfdf5;border-left:4px solid #10b981}
+#products{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px;padding:20px}
+
+.card{background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);overflow:hidden;transition:.2s}
+.card:hover{box-shadow:0 8px 16px rgba(0,0,0,.12);transform:translateY(-2px)}
+.card img{width:100%;height:220px;object-fit:contain;background:#fafafa}
+.card-body{padding:15px}
+.title{font-size:14px;color:#1e293b;margin-bottom:8px;height:40px;overflow:hidden}
+.meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.price{font-weight:700;font-size:20px;color:#0f172a}
+.stars{color:#f59e0b;font-size:13px}
+.badge{display:inline-block;background:#10b981;color:white;font-size:11px;padding:3px 8px;border-radius:4px;font-weight:600}
+.buy{display:block;background:#667eea;color:white;text-align:center;padding:12px;text-decoration:none;border-radius:8px;font-weight:600;transition:.2s}
+.buy:hover{background:#5568d3}
+
+#loading{text-align:center;padding:20px;display:none}
+.spinner{border:3px solid #f3f3f3;border-top:3px solid #667eea;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+</style>
+</head>
+
+<body>
+<header>
+<h1>🔍 AI-Powered Product Search</h1>
+<p>Search 7M+ products with text or image • Powered by DiskANN Vector Search</p>
+</header>
+
+<div id="search-section">
+<div id="search-tabs">
+  <button class="tab active" onclick="switchTab('text')">Text Search</button>
+  <button class="tab" onclick="switchTab('image')">Image Search</button>
+  <button class="tab" onclick="switchTab('multimodal')">Text + Image</button>
+  <button class="tab" onclick="switchTab('browse')">Browse</button>
+</div>
+
+<div id="text-search">
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Search for products... (e.g. wireless headphones, laptop, shoes)">
+    <button id="searchBtn" onclick="searchText()">Search</button>
+  </div>
+</div>
+
+<div id="image-search">
+  <input type="file" id="imageInput" accept="image/*" onchange="previewImage(this)">
+  <img id="imagePreview">
+  <button id="searchBtn" onclick="searchImage()">Search by Image</button>
+</div>
+
+<div id="multimodal-search">
+  <input type="file" id="multimodalImageInput" accept="image/*" onchange="previewMultimodalImage(this)">
+  <img id="multimodalImagePreview">
+  <div class="search-box">
+    <input type="text" id="multimodalTextInput" placeholder="Describe what you're looking for in this image...">
+    <button id="searchBtn" onclick="searchMultimodal()">Search</button>
+  </div>
+</div>
+
+<div id="filters">
+  <select id="category" onchange="refreshResults()">
+    <option value="">All Categories</option>
+  </select>
+  <select id="country" onchange="refreshResults()">
+    <option value="">All Countries</option>
+    <option value="usa">USA</option>
+    <option value="india">India</option>
+    <option value="uk">UK</option>
+    <option value="canada">Canada</option>
+  </select>
+  <input type="number" id="minPrice" placeholder="Min Price" onchange="refreshResults()">
+  <input type="number" id="maxPrice" placeholder="Max Price" onchange="refreshResults()">
+  <label><input type="checkbox" id="bestSeller" onchange="refreshResults()"> Best Sellers Only</label>
+</div>
+</div>
+
+<div id="results-info" style="display:none"></div>
+<div id="loading"><div class="spinner"></div></div>
+<div id="products"></div>
+
+<script>
+let currentMode='browse';
+let currentQuery='';
+let page=1;
+let loading=false;
+
+function switchTab(mode){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  event.target.classList.add('active');
+  
+  document.getElementById('text-search').style.display=mode==='text'?'block':'none';
+  document.getElementById('image-search').style.display=mode==='image'?'block':'none';
+  document.getElementById('multimodal-search').style.display=mode==='multimodal'?'block':'none';
+  
+  currentMode=mode;
+  if(mode==='browse')refreshResults();
+}
+
+function previewImage(input){
+  const preview=document.getElementById('imagePreview');
+  if(input.files&&input.files[0]){
+    const reader=new FileReader();
+    reader.onload=e=>{preview.src=e.target.result;preview.style.display='block'};
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+function previewMultimodalImage(input){
+  const preview=document.getElementById('multimodalImagePreview');
+  if(input.files&&input.files[0]){
+    const reader=new FileReader();
+    reader.onload=e=>{preview.src=e.target.result;preview.style.display='block'};
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+async function loadCategories(){
+  const res=await fetch("http://localhost:8000/categories");
+  const cats=await res.json();
+  const sel=document.getElementById("category");
+  cats.forEach(c=>{
+    const val=c.id||c;
+    const name=c.name||`Category ${c}`;
+    sel.innerHTML+=`<option value="${val}">${name}</option>`;
+  });
+}
+
+async function searchText(){
+  const query=document.getElementById('searchInput').value.trim();
+  if(!query)return alert('Please enter a search query');
+  
+  currentMode='text';
+  currentQuery=query;
+  page=1;
+  document.getElementById('products').innerHTML='';
+  document.getElementById('results-info').style.display='none';
+  
+  await loadProducts();
+}
+
+async function searchImage(){
+  const input=document.getElementById('imageInput');
+  if(!input.files||!input.files[0])return alert('Please select an image');
+  
+  currentMode='image';
+  currentQuery='';
+  page=1;
+  document.getElementById('products').innerHTML='';
+  document.getElementById('loading').style.display='block';
+  
+  const formData=new FormData();
+  formData.append('file',input.files[0]);
+  
+  const cat=document.getElementById('category').value;
+  const country=document.getElementById('country').value;
+  
+  let url=`http://localhost:8000/search/image?limit=40`;
+  if(cat)url+=`&category=${cat}`;
+  if(country)url+=`&country=${country}`;
+  
+  const res=await fetch(url,{method:'POST',body:formData});
+  const data=await res.json();
+  
+  document.getElementById('loading').style.display='none';
+  document.getElementById('results-info').innerHTML=`Found ${data.total} similar products`;
+  document.getElementById('results-info').style.display='block';
+  
+  displayProducts(data.products);
+}
+
+async function searchMultimodal(){
+  const input=document.getElementById('multimodalImageInput');
+  const text=document.getElementById('multimodalTextInput').value.trim();
+  
+  if(!input.files||!input.files[0])return alert('Please select an image');
+  if(!text)return alert('Please enter a text description');
+  
+  currentMode='multimodal';
+  currentQuery=text;
+  page=1;
+  document.getElementById('products').innerHTML='';
+  document.getElementById('loading').style.display='block';
+  
+  const formData=new FormData();
+  formData.append('file',input.files[0]);
+  
+  const cat=document.getElementById('category').value;
+  const country=document.getElementById('country').value;
+  
+  let url=`http://localhost:8000/search/multimodal?q=${encodeURIComponent(text)}&limit=40`;
+  if(cat)url+=`&category=${cat}`;
+  if(country)url+=`&country=${country}`;
+  
+  const res=await fetch(url,{method:'POST',body:formData});
+  const data=await res.json();
+  
+  document.getElementById('loading').style.display='none';
+  document.getElementById('results-info').innerHTML=`Found ${data.total} results for image + "${text}"`;
+  document.getElementById('results-info').style.display='block';
+  
+  displayProducts(data.products);
+}
+
+async function refreshResults(){
+  page=1;
+  document.getElementById('products').innerHTML='';
+  await loadProducts();
+}
+
+async function loadProducts(){
+  if(loading)return;
+  loading=true;
+  document.getElementById('loading').style.display='block';
+  
+  const cat=document.getElementById('category').value;
+  const country=document.getElementById('country').value;
+  const minPrice=document.getElementById('minPrice').value;
+  const maxPrice=document.getElementById('maxPrice').value;
+  const bestSeller=document.getElementById('bestSeller').checked;
+  
+  let url='';
+  
+  if(currentMode==='text'){
+    url=`http://localhost:8000/search/text?q=${encodeURIComponent(currentQuery)}&page=${page}&limit=40`;
+    if(cat)url+=`&category=${cat}`;
+    if(country)url+=`&country=${country}`;
+    if(minPrice)url+=`&min_price=${minPrice}`;
+    if(maxPrice)url+=`&max_price=${maxPrice}`;
+  }else if(currentMode==='browse'){
+    url=`http://localhost:8000/browse?page=${page}&limit=40`;
+    if(cat)url+=`&category=${cat}`;
+    if(country)url+=`&country=${country}`;
+    if(minPrice)url+=`&min_price=${minPrice}`;
+    if(maxPrice)url+=`&max_price=${maxPrice}`;
+    if(bestSeller)url+=`&best_seller=true`;
+  }else{
+    // image or multimodal - already loaded, just return
+    loading=false;
+    document.getElementById('loading').style.display='none';
+    return;
+  }
+  
+  const res=await fetch(url);
+  const data=await res.json();
+  
+  document.getElementById('loading').style.display='none';
+  
+  if(currentMode==='text'){
+    if(page===1){
+      document.getElementById('results-info').innerHTML=`Found results for "${currentQuery}" - scroll for more`;
+      document.getElementById('results-info').style.display='block';
+    }
+    displayProducts(data.products);
+    if(data.products.length>0)page++;
+  }else{
+    displayProducts(data.products);
+    if(data.products.length>0)page++;
+  }
+  
+  loading=false;
+}
+
+function displayProducts(products){
+  products.forEach(p=>{
+    const div=document.createElement("div");
+    div.className="card";
+    const stars='⭐'.repeat(Math.round(p.stars||0));
+    const badge=p.isBestSeller?'<span class="badge">BEST SELLER</span>':'';
+    div.innerHTML=`
+      <img src="${p.imageUrl}" alt="${p.title}">
+      <div class="card-body">
+        <div class="title">${p.title}</div>
+        <div class="meta">
+          <span class="price">$${p.price.toFixed(2)}</span>
+          <span class="stars">${stars}</span>
+        </div>
+        ${badge}
+        <a class="buy" href="${p.productURL}" target="_blank">View Product</a>
+      </div>`;
+    document.getElementById("products").appendChild(div);
+  });
+}
+
+window.onscroll=()=>{
+  if((currentMode==='browse'||currentMode==='text')&&window.innerHeight+window.scrollY>=document.body.offsetHeight-500){
+    loadProducts();
+  }
+};
+
+// Enter key for text search
+document.getElementById('searchInput').addEventListener('keypress',e=>{
+  if(e.key==='Enter')searchText();
+});
+
+// Enter key for multimodal text input
+document.getElementById('multimodalTextInput').addEventListener('keypress',e=>{
+  if(e.key==='Enter')searchMultimodal();
+});
+
+loadCategories();
+loadProducts();
+</script>
+</body>
+</html>
