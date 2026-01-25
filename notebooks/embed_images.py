@@ -13,11 +13,11 @@ from e_commerce_recommendation.configs.settings import Settings
 settings = Settings()
 DATABASE_URL = settings.SAMPLE_DATABASE_URL
 
-GPU_BATCH_SIZE = 480          # Match vLLM max (245)
-DB_FETCH_SIZE = 960           # Smaller DB chunks for streaming
-PREFETCH_QUEUE_SIZE = 20      # Deep queue - GPU never starves
-WRITE_BUFFER_SIZE = 1000      # Bulk write every N embeddings
-IMAGE_WORKERS = 16            # More parallel image loading
+GPU_BATCH_SIZE = 16          # Conservative for vision encoder memory
+DB_FETCH_SIZE = 1024           # Smaller DB chunks for streaming
+PREFETCH_QUEUE_SIZE = 24      # Deep queue - GPU never starves
+WRITE_BUFFER_SIZE = 2048      # Bulk write every N embeddings
+IMAGE_WORKERS = 24            # More parallel image loading
 
 # ---------------------------
 # SQL
@@ -47,22 +47,14 @@ def to_pgvector(vec):
     return "[" + ",".join(f"{x:.6f}" for x in vec) + "]"
 
 # ---------------------------
-# MULTIMODAL PROMPT (VISUAL-FOCUSED)
+# IMAGE-ONLY PROMPT (OFFICIAL QWEN FORMAT)
 # ---------------------------
-def build_prompt(image, title):
-    return [
-        {
-            "role": "system",
-            "content": "You are a multimodal embedding model. Focus primarily on encoding the VISUAL appearance (colors, style, patterns, design, and amazon ecommerce attributes) of the product shown in the image. The title provides supplementary context. Encode the visual appearance, colors, style, patterns, textures, and design of this product image for visual similarity search."
-        },
-        {
-            "role": "user",
-            "content": [
-                {"type": "image", "image": image},
-                {"type": "text", "text": title}
-            ]
-        }
-    ]
+def build_prompt_string(image):
+    """Build raw prompt string in official Qwen3-VL format."""
+    default_instruction = "Represent the user's input."
+    image_placeholder = "<|vision_start|><|image_pad|><|vision_end|>"
+    prompt = f"<|im_start|>system\n{default_instruction}<|im_end|>\n<|im_start|>user\n{image_placeholder}<|im_end|>\n<|im_start|>assistant\n"
+    return prompt
 
 # ---------------------------
 # IMAGE LOADER (CPU-bound, runs in thread pool)
@@ -120,20 +112,20 @@ async def producer(pool, input_queue: asyncio.Queue, total_count: int, executor:
 # CONSUMER: GPU Embedding (sync, runs in thread)
 # ---------------------------
 def embed_batch_sync(batch, llm: LLM):
-    """Run GPU embedding synchronously."""
+    """Run GPU embedding synchronously using official Qwen3-VL format."""
     ids, images, titles = zip(*batch)
     
-    prompts = []
-    for img, title in zip(images, titles):
-        conversation = build_prompt(img, title)
-        prompt = llm.llm_engine.tokenizer.apply_chat_template(
-            conversation,
-            tokenize=False,
-            add_generation_prompt=True
-        )
-        prompts.append(prompt)
+    # Build prompts and multi-modal data in official format
+    prompt_str = build_prompt_string(None)  # Same prompt for all images
     
-    outputs = llm.embed(prompts, use_tqdm=False)
+    inputs = []
+    for img in images:
+        inputs.append({
+            "prompt": prompt_str,
+            "multi_modal_data": {"image": img}
+        })
+    
+    outputs = llm.embed(inputs, use_tqdm=False)
     embeddings = [o.outputs.embedding for o in outputs]
     
     return list(zip(ids, embeddings))
@@ -252,11 +244,16 @@ async def main():
     llm = LLM(
         model="Qwen/Qwen3-VL-Embedding-2B",
         runner="pooling",
-        max_model_len=2256,
+        max_model_len=8192,        # Match official example
         quantization="mxfp4",
         gpu_memory_utilization=0.90,
+        limit_mm_per_prompt={"image": 1},  # Official format
         enforce_eager=False
     )
+    
+    print(f"\n🖼️  IMAGE-ONLY EMBEDDING MODE")
+    print(f"   Batch Size: {GPU_BATCH_SIZE} | Workers: {IMAGE_WORKERS}")
+    print(f"   Max Token Length: 8192 (image-only)\n")
     
     await embed_all_products(pool, llm)
     await pool.close()

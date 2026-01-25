@@ -10,7 +10,7 @@ from embeddings import load_model, embed_text, embed_image, embed_multimodal
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("SAMPLE_DATABASE_URL")
 IMAGE_ROOT = "/home/administrator/Desktop/datascience/github/e-commerce-recommendation/data/raw_data"
 
 # PostgreSQL vector converter

@@ -5,75 +5,70 @@ from PIL import Image
 from vllm import LLM
 from typing import Union
 
-# Global LLM instance (loaded once at startup)
-llm = None
+
+class EmbeddingModel:
+    """Singleton embedding model using factory pattern from embed_images.py"""
+    _instance = None
+    
+    def __init__(self):
+        self.llm = None
+    
+    @classmethod
+    def create(cls):
+        """Factory method to create and initialize the embedding model."""
+        if cls._instance is None:
+            cls._instance = cls()
+            cls._instance.llm = LLM(
+                model="Qwen/Qwen3-VL-Embedding-2B",
+                runner="pooling",
+                quantization="mxfp4",
+                max_model_len=600,
+                limit_mm_per_prompt={"image": 1},
+                gpu_memory_utilization=0.80,
+                enforce_eager=False
+            )
+            print("✅ Qwen3-VL-Embedding model loaded with vLLM")
+        return cls._instance
+    
+    @classmethod
+    def get_instance(cls):
+        """Get existing instance or create new one."""
+        if cls._instance is None:
+            return cls.create()
+        return cls._instance
+
 
 def load_model():
-    """Load the Qwen3-VL-Embedding model with vLLM once at startup."""
-    global llm
+    """Load the Qwen3-VL-Embedding model - uses factory pattern."""
+    return EmbeddingModel.create()
+
+
+def build_request(image=None, text=""):
+    """Build request dict in official Qwen3-VL format - matching embed_images.py exactly."""
+    default_instruction = "Represent the user's input for multi-modal ecommerce products recommendation. focus more on product's detailing"
+    vision_token = "<|vision_start|><|image_pad|><|vision_end|>"
     
-    if llm is not None:
-        return
-    
-    llm = LLM(
-        model="Qwen/Qwen3-VL-Embedding-2B",
-        runner="pooling",
-        max_model_len=600,
-        quantization="mxfp4",
-        gpu_memory_utilization=0.8
-    )
-    
-    print(f"✅ Qwen3-VL-Embedding model loaded with vLLM")
-
-
-def build_text_prompt(text: str):
-    """Build prompt for text embedding - matching embed_images.py pattern."""
-    return [
-        {
-            "role": "system",
-            "content": "You are a multimodal embedding model. Encode the search query into a semantic vector."
-        },
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": text}
-            ]
+    if image and text:
+        # Multimodal: image + text
+        prompt = f"<|im_start|>system\n{default_instruction}<|im_end|>\n<|im_start|>user\n{vision_token}{text}<|im_end|>\n<|im_start|>assistant\n"
+        return {
+            "prompt": prompt,
+            "multi_modal_data": {"image": image}
         }
-    ]
-
-
-def build_image_prompt(image: Image.Image):
-    """Build prompt for image embedding - should match embed_images.py pattern."""
-    return [
-        {
-            "role": "system",
-            "content": "You are a multimodal embedding model. Encode the product image and title into a single semantic vector."
-        },
-        {
-            "role": "user",
-            "content": [
-                {"type": "image", "image": image},
-                {"type": "text", "text": "Product title: "}
-            ]
+    elif image:
+        # Image only
+        prompt = f"<|im_start|>system\n{default_instruction}<|im_end|>\n<|im_start|>user\n{vision_token}<|im_end|>\n<|im_start|>assistant\n"
+        return {
+            "prompt": prompt,
+            "multi_modal_data": {"image": image}
         }
-    ]
-
-
-def build_multimodal_prompt(image: Image.Image, text: str):
-    """Build prompt for combined text + image embedding."""
-    return [
-        {
-            "role": "system",
-            "content": "You are a multimodal embedding model. Encode the product image and text query into a single semantic vector."
-        },
-        {
-            "role": "user",
-            "content": [
-                {"type": "image", "image": image},
-                {"type": "text", "text": text}
-            ]
+    else:
+        # Text only
+        prompt = f"<|im_start|>system\n{default_instruction}<|im_end|>\n<|im_start|>user\n{text}<|im_end|>\n<|im_start|>assistant\n"
+        return {
+            "prompt": prompt,
+            "multi_modal_data": None
         }
-    ]
 
 
 def embed_text(text: str) -> list[float]:
@@ -86,21 +81,13 @@ def embed_text(text: str) -> list[float]:
     Returns:
         Embedding vector as list of floats
     """
-    if llm is None:
-        load_model()
+    model = EmbeddingModel.get_instance()
     
-    # Build conversation
-    conversation = build_text_prompt(text)
-    
-    # Apply chat template (exactly like embed_images.py)
-    prompt = llm.llm_engine.tokenizer.apply_chat_template(
-        conversation,
-        tokenize=False,
-        add_generation_prompt=True
-    )
+    # Build request in exact format from embed_images.py
+    request = build_request(image=None, text=text)
     
     # Generate embedding
-    outputs = llm.embed([prompt], use_tqdm=False)
+    outputs = model.llm.embed([request], use_tqdm=False)
     embedding = outputs[0].outputs.embedding
     
     return embedding
@@ -116,25 +103,21 @@ def embed_image(image: Union[Image.Image, str]) -> list[float]:
     Returns:
         Embedding vector as list of floats
     """
-    if llm is None:
-        load_model()
+    model = EmbeddingModel.get_instance()
     
     # Load image if path provided
     if isinstance(image, str):
         image = Image.open(image).convert("RGB")
+        # Resize if needed
+        MAX_SIZE = 672
+        if max(image.size) > MAX_SIZE:
+            image.thumbnail((MAX_SIZE, MAX_SIZE), Image.Resampling.LANCZOS)
     
-    # Build conversation (exactly like embed_images.py)
-    conversation = build_image_prompt(image)
-    
-    # Apply chat template (exactly like embed_images.py)
-    prompt = llm.llm_engine.tokenizer.apply_chat_template(
-        conversation,
-        tokenize=False,
-        add_generation_prompt=True
-    )
+    # Build request in exact format from embed_images.py
+    request = build_request(image=image, text="")
     
     # Generate embedding
-    outputs = llm.embed([prompt], use_tqdm=False)
+    outputs = model.llm.embed([request], use_tqdm=False)
     embedding = outputs[0].outputs.embedding
     
     return embedding
@@ -151,25 +134,21 @@ def embed_multimodal(image: Union[Image.Image, str], text: str) -> list[float]:
     Returns:
         Embedding vector as list of floats
     """
-    if llm is None:
-        load_model()
+    model = EmbeddingModel.get_instance()
     
     # Load image if path provided
     if isinstance(image, str):
         image = Image.open(image).convert("RGB")
+        # Resize if needed
+        MAX_SIZE = 672
+        if max(image.size) > MAX_SIZE:
+            image.thumbnail((MAX_SIZE, MAX_SIZE), Image.Resampling.LANCZOS)
     
-    # Build multimodal conversation
-    conversation = build_multimodal_prompt(image, text)
-    
-    # Apply chat template
-    prompt = llm.llm_engine.tokenizer.apply_chat_template(
-        conversation,
-        tokenize=False,
-        add_generation_prompt=True
-    )
+    # Build request in exact format from embed_images.py
+    request = build_request(image=image, text=text)
     
     # Generate embedding
-    outputs = llm.embed([prompt], use_tqdm=False)
+    outputs = model.llm.embed([request], use_tqdm=False)
     embedding = outputs[0].outputs.embedding
     
     return embedding
