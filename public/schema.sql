@@ -26,7 +26,7 @@ CREATE TABLE products (
   bought_in_last_month INT,
 
   labels SMALLINT[] NOT NULL,
-  embedding VECTOR(1024) NOT NULL,
+  embedding VECTOR(1024),
 
   UNIQUE (asin, country)
 );

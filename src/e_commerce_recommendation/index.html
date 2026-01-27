@@ -1,335 +1,629 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-<title>AI Product Search</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-*{box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f5f7fa;margin:0}
-header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:20px;text-align:center}
-header h1{margin:0;font-size:28px;font-weight:700}
-header p{margin:5px 0 0;opacity:0.9;font-size:14px}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexShop AI | Future of E-Commerce Search</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --secondary: #ec4899;
+      --bg: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --text-main: #f8fafc;
+      --text-dim: #94a3b8;
+      --glass: rgba(255, 255, 255, 0.03);
+      --glass-border: rgba(255, 255, 255, 0.1);
+    }
 
-#search-section{background:white;padding:20px;box-shadow:0 2px 4px rgba(0,0,0,.1)}
-#search-tabs{display:flex;gap:10px;margin-bottom:15px}
-.tab{padding:10px 20px;background:#f1f5f9;border:none;border-radius:6px;cursor:pointer;font-weight:600;transition:.2s}
-.tab.active{background:#667eea;color:white}
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
 
-#text-search{display:block}
-#image-search{display:none}
-#multimodal-search{display:none}
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.1) 0px, transparent 50%);
+      color: var(--text-main);
+      min-height: 100vh;
+      overflow-x: hidden;
+      line-height: 1.5;
+    }
 
-.search-box{display:flex;gap:10px;margin-bottom:15px}
-#searchInput{flex:1;padding:12px;border:2px solid #e2e8f0;border-radius:8px;font-size:15px}
-#searchBtn{padding:12px 30px;background:#667eea;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;transition:.2s}
-#searchBtn:hover{background:#5568d3}
+    /* Better scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
 
-#imageInput{padding:10px;border:2px dashed #cbd5e1;border-radius:8px;cursor:pointer;width:100%}
-#imagePreview,#multimodalImagePreview{max-width:200px;max-height:200px;margin:10px 0;border-radius:8px;display:none}
-#multimodalImageInput{padding:10px;border:2px dashed #cbd5e1;border-radius:8px;cursor:pointer;width:100%;margin-bottom:10px}
+    ::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
 
-#filters{display:flex;gap:10px;flex-wrap:wrap}
-select,input{padding:10px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px}
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
 
-#results-info{padding:15px 20px;background:#ecfdf5;border-left:4px solid #10b981}
-#products{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px;padding:20px}
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
 
-.card{background:white;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);overflow:hidden;transition:.2s}
-.card:hover{box-shadow:0 8px 16px rgba(0,0,0,.12);transform:translateY(-2px)}
-.card img{width:100%;height:220px;object-fit:contain;background:#fafafa}
-.card-body{padding:15px}
-.title{font-size:14px;color:#1e293b;margin-bottom:8px;height:40px;overflow:hidden}
-.meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.price{font-weight:700;font-size:20px;color:#0f172a}
-.stars{color:#f59e0b;font-size:13px}
-.badge{display:inline-block;background:#10b981;color:white;font-size:11px;padding:3px 8px;border-radius:4px;font-weight:600}
-.buy{display:block;background:#667eea;color:white;text-align:center;padding:12px;text-decoration:none;border-radius:8px;font-weight:600;transition:.2s}
-.buy:hover{background:#5568d3}
+    header {
+      padding: 60px 20px 40px;
+      text-align: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
 
-#loading{text-align:center;padding:20px;display:none}
-.spinner{border:3px solid #f3f3f3;border-top:3px solid #667eea;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto}
-@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-</style>
+    header h1 {
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 800;
+      background: linear-gradient(to right, #818cf8, #f472b6);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    header p {
+      color: var(--text-dim);
+      font-size: 1.1rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    #search-section {
+      max-width: 1000px;
+      margin: 20px auto 40px;
+      padding: 0 20px;
+      position: sticky;
+      top: 20px;
+      z-index: 100;
+    }
+
+    .glass-container {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    #search-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      background: rgba(15, 23, 42, 0.5);
+      padding: 6px;
+      border-radius: 14px;
+      width: fit-content;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-dim);
+      background: transparent;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .tab.active {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.4);
+    }
+
+    .tab:hover:not(.active) {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+    }
+
+    .search-box-wrapper {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    input[type="text"],
+    select,
+    input[type="number"] {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--glass-border);
+      padding: 14px 20px;
+      border-radius: 12px;
+      color: white;
+      font-family: inherit;
+      font-size: 15px;
+      transition: all 0.2s;
+      outline: none;
+      width: 100%;
+    }
+
+    input[type="text"]:focus,
+    select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+    }
+
+    #searchInput {
+      flex: 1;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.5);
+    }
+
+    #filters {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding-top: 20px;
+      border-top: 1px solid var(--glass-border);
+    }
+
+    #filters select,
+    #filters input {
+      min-width: 140px;
+      flex: 1;
+      padding: 10px 16px;
+      font-size: 13px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--text-dim);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .checkbox-label input {
+      accent-color: var(--primary);
+      width: 18px;
+      height: 18px;
+      flex: none;
+    }
+
+    /* Results Area */
+    #results-info {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 40px;
+      font-size: 14px;
+      color: var(--text-dim);
+      margin-bottom: 24px;
+    }
+
+    #products {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 32px;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 40px 60px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      overflow: hidden;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .card:hover {
+      transform: translateY(-8px) scale(1.02);
+      border-color: rgba(99, 102, 241, 0.4);
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.4);
+    }
+
+    .image-container {
+      width: 100%;
+      height: 280px;
+      background: white;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .card img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      transition: transform 0.6s;
+    }
+
+    .card:hover .image-container img {
+      transform: scale(1.1);
+    }
+
+    .card-body {
+      padding: 24px;
+    }
+
+    .badge {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: linear-gradient(to right, #fbbf24, #f59e0b);
+      color: #000;
+      padding: 4px 12px;
+      border-radius: 100px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      z-index: 10;
+    }
+
+    .title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 12px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      height: 44px;
+      line-height: 1.4;
+    }
+
+    .price-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .price {
+      font-size: 22px;
+      font-weight: 800;
+      color: white;
+    }
+
+    .stars {
+      color: #f59e0b;
+      font-size: 14px;
+      letter-spacing: 2px;
+    }
+
+    .buy-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      color: white;
+      text-decoration: none;
+      padding: 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      border: 1px solid var(--glass-border);
+      transition: all 0.3s;
+    }
+
+    .buy-btn:hover {
+      background: white;
+      color: #000;
+    }
+
+    #loading {
+      padding: 60px;
+      text-align: center;
+    }
+
+    .loader {
+      width: 48px;
+      height: 48px;
+      border: 5px solid rgba(99, 102, 241, 0.2);
+      border-bottom-color: var(--primary);
+      border-radius: 50%;
+      display: inline-block;
+      animation: rotation 1s linear infinite;
+    }
+
+    @keyframes rotation {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      header {
+        padding: 40px 20px;
+      }
+
+      .search-box-wrapper {
+        flex-direction: column;
+      }
+
+      .btn-primary {
+        width: 100%;
+        justify-content: center;
+      }
+
+      #products {
+        padding: 0 20px 40px;
+      }
+    }
+  </style>
 </head>
 
 <body>
-<header>
-<h1>🔍 AI-Powered Product Search</h1>
-<p>Search 7M+ products with text or image • Powered by DiskANN Vector Search</p>
-</header>
+  <header>
+    <h1>NexShop AI</h1>
+    <p>Experience the next generation of product discovery. Search 7M+ items across the globe with precision.</p>
+  </header>
 
-<div id="search-section">
-<div id="search-tabs">
-  <button class="tab active" onclick="switchTab('text')">Text Search</button>
-  <button class="tab" onclick="switchTab('image')">Image Search</button>
-  <button class="tab" onclick="switchTab('multimodal')">Text + Image</button>
-  <button class="tab" onclick="switchTab('browse')">Browse</button>
-</div>
+  <div id="search-section">
+    <div class="glass-container">
+      <div id="search-tabs">
+        <button class="tab" onclick="switchTab('text')">Text Search</button>
+        <button class="tab active" onclick="switchTab('browse')">Global Browse</button>
+      </div>
 
-<div id="text-search">
-  <div class="search-box">
-    <input type="text" id="searchInput" placeholder="Search for products... (e.g. wireless headphones, laptop, shoes)">
-    <button id="searchBtn" onclick="searchText()">Search</button>
-  </div>
-</div>
-
-<div id="image-search">
-  <input type="file" id="imageInput" accept="image/*" onchange="previewImage(this)">
-  <img id="imagePreview">
-  <button id="searchBtn" onclick="searchImage()">Search by Image</button>
-</div>
-
-<div id="multimodal-search">
-  <input type="file" id="multimodalImageInput" accept="image/*" onchange="previewMultimodalImage(this)">
-  <img id="multimodalImagePreview">
-  <div class="search-box">
-    <input type="text" id="multimodalTextInput" placeholder="Describe what you're looking for in this image...">
-    <button id="searchBtn" onclick="searchMultimodal()">Search</button>
-  </div>
-</div>
-
-<div id="filters">
-  <select id="category" onchange="refreshResults()">
-    <option value="">All Categories</option>
-  </select>
-  <select id="country" onchange="refreshResults()">
-    <option value="">All Countries</option>
-    <option value="usa">USA</option>
-    <option value="india">India</option>
-    <option value="uk">UK</option>
-    <option value="canada">Canada</option>
-  </select>
-  <input type="number" id="minPrice" placeholder="Min Price" onchange="refreshResults()">
-  <input type="number" id="maxPrice" placeholder="Max Price" onchange="refreshResults()">
-  <label><input type="checkbox" id="bestSeller" onchange="refreshResults()"> Best Sellers Only</label>
-</div>
-</div>
-
-<div id="results-info" style="display:none"></div>
-<div id="loading"><div class="spinner"></div></div>
-<div id="products"></div>
-
-<script>
-let currentMode='browse';
-let currentQuery='';
-let page=1;
-let loading=false;
-
-function switchTab(mode){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  event.target.classList.add('active');
-  
-  document.getElementById('text-search').style.display=mode==='text'?'block':'none';
-  document.getElementById('image-search').style.display=mode==='image'?'block':'none';
-  document.getElementById('multimodal-search').style.display=mode==='multimodal'?'block':'none';
-  
-  currentMode=mode;
-  if(mode==='browse')refreshResults();
-}
-
-function previewImage(input){
-  const preview=document.getElementById('imagePreview');
-  if(input.files&&input.files[0]){
-    const reader=new FileReader();
-    reader.onload=e=>{preview.src=e.target.result;preview.style.display='block'};
-    reader.readAsDataURL(input.files[0]);
-  }
-}
-
-function previewMultimodalImage(input){
-  const preview=document.getElementById('multimodalImagePreview');
-  if(input.files&&input.files[0]){
-    const reader=new FileReader();
-    reader.onload=e=>{preview.src=e.target.result;preview.style.display='block'};
-    reader.readAsDataURL(input.files[0]);
-  }
-}
-
-async function loadCategories(){
-  const res=await fetch("http://localhost:8000/categories");
-  const cats=await res.json();
-  const sel=document.getElementById("category");
-  cats.forEach(c=>{
-    const val=c.id||c;
-    const name=c.name||`Category ${c}`;
-    sel.innerHTML+=`<option value="${val}">${name}</option>`;
-  });
-}
-
-async function searchText(){
-  const query=document.getElementById('searchInput').value.trim();
-  if(!query)return alert('Please enter a search query');
-  
-  currentMode='text';
-  currentQuery=query;
-  page=1;
-  document.getElementById('products').innerHTML='';
-  document.getElementById('results-info').style.display='none';
-  
-  await loadProducts();
-}
-
-async function searchImage(){
-  const input=document.getElementById('imageInput');
-  if(!input.files||!input.files[0])return alert('Please select an image');
-  
-  currentMode='image';
-  currentQuery='';
-  page=1;
-  document.getElementById('products').innerHTML='';
-  document.getElementById('loading').style.display='block';
-  
-  const formData=new FormData();
-  formData.append('file',input.files[0]);
-  
-  const cat=document.getElementById('category').value;
-  const country=document.getElementById('country').value;
-  
-  let url=`http://localhost:8000/search/image?limit=40`;
-  if(cat)url+=`&category=${cat}`;
-  if(country)url+=`&country=${country}`;
-  
-  const res=await fetch(url,{method:'POST',body:formData});
-  const data=await res.json();
-  
-  document.getElementById('loading').style.display='none';
-  document.getElementById('results-info').innerHTML=`Found ${data.total} similar products`;
-  document.getElementById('results-info').style.display='block';
-  
-  displayProducts(data.products);
-}
-
-async function searchMultimodal(){
-  const input=document.getElementById('multimodalImageInput');
-  const text=document.getElementById('multimodalTextInput').value.trim();
-  
-  if(!input.files||!input.files[0])return alert('Please select an image');
-  if(!text)return alert('Please enter a text description');
-  
-  currentMode='multimodal';
-  currentQuery=text;
-  page=1;
-  document.getElementById('products').innerHTML='';
-  document.getElementById('loading').style.display='block';
-  
-  const formData=new FormData();
-  formData.append('file',input.files[0]);
-  
-  const cat=document.getElementById('category').value;
-  const country=document.getElementById('country').value;
-  
-  let url=`http://localhost:8000/search/multimodal?q=${encodeURIComponent(text)}&limit=40`;
-  if(cat)url+=`&category=${cat}`;
-  if(country)url+=`&country=${country}`;
-  
-  const res=await fetch(url,{method:'POST',body:formData});
-  const data=await res.json();
-  
-  document.getElementById('loading').style.display='none';
-  document.getElementById('results-info').innerHTML=`Found ${data.total} results for image + "${text}"`;
-  document.getElementById('results-info').style.display='block';
-  
-  displayProducts(data.products);
-}
-
-async function refreshResults(){
-  page=1;
-  document.getElementById('products').innerHTML='';
-  await loadProducts();
-}
-
-async function loadProducts(){
-  if(loading)return;
-  loading=true;
-  document.getElementById('loading').style.display='block';
-  
-  const cat=document.getElementById('category').value;
-  const country=document.getElementById('country').value;
-  const minPrice=document.getElementById('minPrice').value;
-  const maxPrice=document.getElementById('maxPrice').value;
-  const bestSeller=document.getElementById('bestSeller').checked;
-  
-  let url='';
-  
-  if(currentMode==='text'){
-    url=`http://localhost:8000/search/text?q=${encodeURIComponent(currentQuery)}&page=${page}&limit=40`;
-    if(cat)url+=`&category=${cat}`;
-    if(country)url+=`&country=${country}`;
-    if(minPrice)url+=`&min_price=${minPrice}`;
-    if(maxPrice)url+=`&max_price=${maxPrice}`;
-  }else if(currentMode==='browse'){
-    url=`http://localhost:8000/browse?page=${page}&limit=40`;
-    if(cat)url+=`&category=${cat}`;
-    if(country)url+=`&country=${country}`;
-    if(minPrice)url+=`&min_price=${minPrice}`;
-    if(maxPrice)url+=`&max_price=${maxPrice}`;
-    if(bestSeller)url+=`&best_seller=true`;
-  }else{
-    // image or multimodal - already loaded, just return
-    loading=false;
-    document.getElementById('loading').style.display='none';
-    return;
-  }
-  
-  const res=await fetch(url);
-  const data=await res.json();
-  
-  document.getElementById('loading').style.display='none';
-  
-  if(currentMode==='text'){
-    if(page===1){
-      document.getElementById('results-info').innerHTML=`Found results for "${currentQuery}" - scroll for more`;
-      document.getElementById('results-info').style.display='block';
-    }
-    displayProducts(data.products);
-    if(data.products.length>0)page++;
-  }else{
-    displayProducts(data.products);
-    if(data.products.length>0)page++;
-  }
-  
-  loading=false;
-}
-
-function displayProducts(products){
-  products.forEach(p=>{
-    const div=document.createElement("div");
-    div.className="card";
-    const stars='⭐'.repeat(Math.round(p.stars||0));
-    const badge=p.isBestSeller?'<span class="badge">BEST SELLER</span>':'';
-    div.innerHTML=`
-      <img src="${p.imageUrl}" alt="${p.title}">
-      <div class="card-body">
-        <div class="title">${p.title}</div>
-        <div class="meta">
-          <span class="price">$${p.price.toFixed(2)}</span>
-          <span class="stars">${stars}</span>
+      <div id="text-search" style="display:none">
+        <div class="search-box-wrapper">
+          <input type="text" id="searchInput" placeholder="Search for anything... (e.g. vintage leather boots)">
+          <button class="btn-primary" onclick="searchText()">
+            <span>Search</span>
+          </button>
         </div>
-        ${badge}
-        <a class="buy" href="${p.productURL}" target="_blank">View Product</a>
-      </div>`;
-    document.getElementById("products").appendChild(div);
-  });
-}
+      </div>
 
-window.onscroll=()=>{
-  if((currentMode==='browse'||currentMode==='text')&&window.innerHeight+window.scrollY>=document.body.offsetHeight-500){
+      <div id="filters">
+        <select id="category" onchange="refreshResults()">
+          <option value="">All Categories</option>
+        </select>
+        <select id="country" onchange="countryChanged()">
+          <option value="">Global Market</option>
+          <option value="usa">United States</option>
+          <option value="india">India</option>
+          <option value="uk">United Kingdom</option>
+          <option value="canada">Canada</option>
+        </select>
+        <input type="number" id="minPrice" placeholder="Min $" onchange="refreshResults()">
+        <input type="number" id="maxPrice" placeholder="Max $" onchange="refreshResults()">
+        <label class="checkbox-label">
+          <input type="checkbox" id="bestSeller" onchange="refreshResults()">
+          Best Sellers
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div id="results-info" style="display:none"></div>
+  <div id="loading" style="display:none"><span class="loader"></span></div>
+  <div id="products"></div>
+
+  <script>
+    let currentMode = 'browse';
+    let currentQuery = '';
+    let page = 1;
+    let loading = false;
+    let hasMore = true;
+
+    async function loadCategories(country = "") {
+      try {
+        let url = "/categories";
+        if (country) {
+          url += `?country=${country}`;
+        }
+        const res = await fetch(url);
+        const data = await res.json();
+        const sel = document.getElementById("category");
+        sel.innerHTML = '<option value="">All Categories</option>';
+        data.categories.forEach(c => {
+          const option = document.createElement("option");
+          option.value = c.id;
+          option.textContent = c.name;
+          sel.appendChild(option);
+        });
+      } catch (e) {
+        console.error("Failed to load categories", e);
+      }
+    }
+
+    async function countryChanged() {
+      const country = document.getElementById('country').value;
+      await loadCategories(country);
+      refreshResults();
+    }
+
+    function switchTab(mode) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      // Find the button that was clicked
+      const btns = [...document.querySelectorAll('.tab')];
+      if (mode === 'text') btns[0].classList.add('active');
+      else btns[1].classList.add('active');
+
+      document.getElementById('text-search').style.display = mode === 'text' ? 'block' : 'none';
+
+      currentMode = mode;
+      refreshResults();
+    }
+
+    async function searchText() {
+      const query = document.getElementById('searchInput').value.trim();
+      if (!query) return;
+      currentQuery = query;
+      refreshResults();
+    }
+
+    async function refreshResults() {
+      page = 1;
+      hasMore = true;
+      document.getElementById('products').innerHTML = '';
+      await loadProducts();
+    }
+
+    async function loadProducts() {
+      if (loading || !hasMore) return;
+      loading = true;
+      document.getElementById('loading').style.display = 'block';
+
+      const cat = document.getElementById('category').value;
+      const country = document.getElementById('country').value;
+      const minPrice = document.getElementById('minPrice').value;
+      const maxPrice = document.getElementById('maxPrice').value;
+      const bestSeller = document.getElementById('bestSeller').checked;
+
+      let url = '';
+      const baseUrl = "";
+
+      if (currentMode === 'text') {
+        if (!currentQuery) {
+          document.getElementById('loading').style.display = 'none';
+          loading = false;
+          return;
+        }
+        url = `${baseUrl}/similar_txt?q=${encodeURIComponent(currentQuery)}&page=${page}&limit=40`;
+      } else {
+        url = `${baseUrl}/browse?page=${page}&limit=40`;
+      }
+
+      if (cat) url += `&category=${cat}`;
+      if (country) url += `&country=${country}`;
+      if (minPrice) url += `&min_price=${minPrice}`;
+      if (maxPrice) url += `&max_price=${maxPrice}`;
+      if (bestSeller) url += `&best_seller=true`;
+
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+
+        document.getElementById('loading').style.display = 'none';
+
+        if (!data.products || data.products.length === 0) {
+          hasMore = false;
+          if (page === 1) {
+            document.getElementById('products').innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #64748b;">No products found matching your criteria.</div>';
+          }
+        } else {
+          displayProducts(data.products);
+          page++;
+        }
+
+        if (currentMode === 'text' && page === 2) {
+          document.getElementById('results-info').innerHTML = `Found ${data.total || 'many'} results for "${currentQuery}"`;
+          document.getElementById('results-info').style.display = 'block';
+        } else if (currentMode === 'browse') {
+          document.getElementById('results-info').style.display = 'none';
+        }
+
+      } catch (e) {
+        console.error("Load failed", e);
+      } finally {
+        loading = false;
+      }
+    }
+
+    function displayProducts(products) {
+      const container = document.getElementById("products");
+      products.forEach(p => {
+        const card = document.createElement("div");
+        card.className = "card";
+
+        let starsStr = '';
+        const starsCount = Math.round(p.stars || 0);
+        for (let i = 0; i < 5; i++) {
+          starsStr += i < starsCount ? '★' : '☆';
+        }
+
+        const badge = p.isBestSeller ? '<div class="badge">BEST SELLER</div>' : '';
+
+        const currencyMap = {
+          'usa': '$',
+          'canada': '$',
+          'uk': '£',
+          'india': '₹'
+        };
+        const symbol = currencyMap[p.country?.toLowerCase()] || '$';
+
+        card.innerHTML = `
+                    ${badge}
+                    <div class="image-container">
+                        <img src="${p.imageUrl}" alt="${p.title}" loading="lazy">
+                    </div>
+                    <div class="card-body">
+                        <div class="title" title="${p.title}">${p.title}</div>
+                        <div class="price-row">
+                            <span class="price">${symbol}${(p.price || 0).toFixed(2)}</span>
+                            <span class="stars">${starsStr}</span>
+                        </div>
+                        <a class="buy-btn" href="${p.productURL}" target="_blank">
+                            <span>View Details</span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17l9.2-9.2M17 17V7H7"/></svg>
+                        </a>
+                    </div>
+                `;
+        container.appendChild(card);
+      });
+    }
+
+    // Infinite scroll
+    window.onscroll = () => {
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 800) {
+        loadProducts();
+      }
+    };
+
+    // Initialize
+    document.getElementById('searchInput').addEventListener('keypress', e => {
+      if (e.key === 'Enter') searchText();
+    });
+
+    loadCategories();
     loadProducts();
-  }
-};
-
-// Enter key for text search
-document.getElementById('searchInput').addEventListener('keypress',e=>{
-  if(e.key==='Enter')searchText();
-});
-
-// Enter key for multimodal text input
-document.getElementById('multimodalTextInput').addEventListener('keypress',e=>{
-  if(e.key==='Enter')searchMultimodal();
-});
-
-loadCategories();
-loadProducts();
-</script>
+  </script>
 </body>
+
 </html>
