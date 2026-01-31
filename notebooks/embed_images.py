@@ -6,18 +6,20 @@ from vllm import LLM
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 from e_commerce_recommendation.configs.settings import Settings
+import cv2
 
 # ---------------------------
 # CONFIG
 # ---------------------------
 settings = Settings()
-DATABASE_URL = settings.SAMPLE_DATABASE_URL
+DATABASE_URL = settings.DATABASE_URL
 
-GPU_BATCH_SIZE = 16          # Conservative for vision encoder memory
+GPU_BATCH_SIZE = 128          # Conservative for vision encoder memory
 DB_FETCH_SIZE = 1024           # Smaller DB chunks for streaming
-PREFETCH_QUEUE_SIZE = 24      # Deep queue - GPU never starves
-WRITE_BUFFER_SIZE = 2048      # Bulk write every N embeddings
-IMAGE_WORKERS = 24            # More parallel image loading
+PREFETCH_QUEUE_SIZE = 128*4      # Deep queue - GPU never starves
+WRITE_BUFFER_SIZE = 128*32      # Bulk write every N embeddings
+IMAGE_WORKERS = 128            # More parallel image loading
+NUM_CONSUMERS = 4
 
 # ---------------------------
 # SQL
@@ -59,17 +61,16 @@ def build_prompt_string(image):
 # ---------------------------
 # IMAGE LOADER (CPU-bound, runs in thread pool)
 # ---------------------------
-def load_image_sync(image_path):
-    """Load and preprocess image on CPU thread."""
-    try:
-        img = Image.open(image_path).convert("RGB")
-        # Pre-resize to speed up processing
-        max_size = 1024
-        if max(img.size) > max_size:
-            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-        return img
-    except Exception:
+def load_image_sync(path):
+    img = cv2.imread(path)
+    if img is None:
         return None
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    h, w = img.shape[:2]
+    if max(h, w) > 512:
+        scale = 512 / max(h, w)
+        img = cv2.resize(img, (int(w*scale), int(h*scale)))
+    return Image.fromarray(img)
 
 # ---------------------------
 # PRODUCER: Fetch from DB + Load Images (async)
@@ -215,12 +216,12 @@ async def embed_all_products(pool, llm: LLM):
     
     # Launch pipeline
     prod_task = asyncio.create_task(producer(pool, input_queue, total, executor))
-    cons_task = asyncio.create_task(consumer(input_queue, output_queue, llm, executor))
+    cons_tasks = [asyncio.create_task(consumer(input_queue, output_queue, llm, executor)) for _ in range(NUM_CONSUMERS)]
     write_task = asyncio.create_task(writer(pool, output_queue, pbar))
     
     # Wait for completion - this will raise if any task fails
     try:
-        await asyncio.gather(prod_task, cons_task, write_task)
+        await asyncio.gather(prod_task, *cons_tasks, write_task)
         pbar.close()
         executor.shutdown(wait=True)
         print("\n✓ All products embedded successfully. GPU should show steady utilization.")
@@ -244,7 +245,7 @@ async def main():
     llm = LLM(
         model="Qwen/Qwen3-VL-Embedding-2B",
         runner="pooling",
-        max_model_len=8192,        # Match official example
+        max_model_len=1024,        # Match official example
         quantization="mxfp4",
         gpu_memory_utilization=0.90,
         limit_mm_per_prompt={"image": 1},  # Official format
@@ -253,7 +254,7 @@ async def main():
     
     print(f"\n🖼️  IMAGE-ONLY EMBEDDING MODE")
     print(f"   Batch Size: {GPU_BATCH_SIZE} | Workers: {IMAGE_WORKERS}")
-    print(f"   Max Token Length: 8192 (image-only)\n")
+    print(f"   Max Token Length: 2048 (image-only)\n")
     
     await embed_all_products(pool, llm)
     await pool.close()

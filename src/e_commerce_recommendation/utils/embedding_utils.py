@@ -9,7 +9,7 @@ def load_model() -> LLM:
             model="Qwen/Qwen3-VL-Embedding-2B",
             runner="pooling",
             quantization="mxfp4",
-            max_model_len=600,
+            max_model_len=8192,
             limit_mm_per_prompt={"image": 1},
             gpu_memory_utilization=0.80,
             enforce_eager=False
@@ -116,7 +116,7 @@ async def get_similar_categories(pool: asyncpg.Pool, embedding: list[float], top
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id
+            SELECT category_id
             FROM category_embeddings
             ORDER BY embedding <=> $1
             LIMIT $2
@@ -125,40 +125,5 @@ async def get_similar_categories(pool: asyncpg.Pool, embedding: list[float], top
             top_k
         )
     
-    return [row["id"] for row in rows]
+    return [row["category_id"] for row in rows]
 
-async def get_similar_products(pool: asyncpg.Pool, embedding: list[float], categories: list[int], top_k: int = 10, offset: int = 0) -> list[int]:
-    """
-    Get similar products using vector similarity search
-    """
-    
-    if categories:
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT id
-                FROM products
-                WHERE labels && $1::smallint[]
-                ORDER BY embedding <=> $2
-                LIMIT $3 OFFSET $4
-                """,
-                categories,
-                str(embedding),
-                top_k,
-                offset
-            )
-        return [row["id"] for row in rows]
-    else:
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT id
-                FROM products
-                ORDER BY embedding <=> $1
-                LIMIT $2 OFFSET $3
-                """,
-                str(embedding),
-                top_k,
-                offset
-            )
-        return [row["id"] for row in rows]

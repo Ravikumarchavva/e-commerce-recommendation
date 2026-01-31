@@ -1,10 +1,19 @@
 -- Sample Database Schema for E-Commerce Recommendation
 -- This is a subset of 300k products for development/testing
-
+CREATE EXTENSION vectorscale CASCADE;
 CREATE TABLE IF NOT EXISTS categories (
   id SMALLINT PRIMARY KEY,
   name TEXT NOT NULL
 );
+
+CREATE TABLE category_embeddings (
+  id SMALLINT PRIMARY KEY REFERENCES categories(id),
+  embedding VECTOR(2048) NOT NULL
+);
+
+CREATE INDEX category_ann_idx
+ON category_embeddings
+USING diskann (embedding vector_cosine_ops);
 
 CREATE TABLE IF NOT EXISTS products (
   id BIGSERIAL PRIMARY KEY,

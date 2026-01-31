@@ -1,4 +1,4 @@
-from typing import ClassVar
+from typing import ClassVar, List
 from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     PORT: int
     SSL_CERT_FILE: str
     SSL_KEY_FILE: str
+    ALLOWED_FORMATS: ClassVar[List[str]] = ["JPEG", "PNG", "WEBP"]
+    MAX_IMAGE_SIZE: ClassVar[int] = 10 * 1024 * 1024  # 10MB
 
     @field_validator("SSL_CERT_FILE", "SSL_KEY_FILE")
     @classmethod

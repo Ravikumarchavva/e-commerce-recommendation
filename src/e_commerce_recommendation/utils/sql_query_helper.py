@@ -7,7 +7,8 @@ def filter_helper(
     max_price: float | None,
     best_seller: bool | None,
     page: int,
-    limit: int
+    limit: int,
+    embedding: List[float] | None = None
 ) -> Tuple[str, List[Any]]:
     offset = (page - 1) * limit
     conditions = []
@@ -35,6 +36,12 @@ def filter_helper(
         params.append(best_seller)
         conditions.append(f"is_best_seller = ${len(params)}")
 
+    order_by = "price ASC"
+    if embedding is not None:
+        params.append(str(embedding))
+        conditions.append(f"embedding <=> ${len(params)} < 0.4")
+        order_by = f"embedding <=> ${len(params)}"
+
     where_clause = ""
     if conditions:
         where_clause = "WHERE " + " AND ".join(conditions)
@@ -45,7 +52,7 @@ def filter_helper(
             stars, reviews, price, is_best_seller, bought_in_last_month, labels
         FROM products
         {where_clause}
-        ORDER BY price ASC
+        ORDER BY {order_by}
         LIMIT {limit} OFFSET {offset}
     """
     return query, params

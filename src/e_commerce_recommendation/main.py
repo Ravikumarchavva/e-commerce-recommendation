@@ -1,6 +1,8 @@
 import asyncpg
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.exceptions import HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
@@ -9,12 +11,14 @@ from vllm import LLM
 import torch
 import gc
 import contextlib
+from PIL import Image
+import io
 
 from e_commerce_recommendation.configs.settings import Settings
 from e_commerce_recommendation.utils.sql_query_helper import filter_helper
 from e_commerce_recommendation.utils.utils import format_product
 from e_commerce_recommendation.utils.embedding_utils import (
-    load_model, embed_text, get_similar_categories, get_similar_products
+    load_model, embed_text, embed_image, embed_multimodal, get_similar_categories
 )
 
 settings = Settings()
@@ -22,7 +26,7 @@ settings = Settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.pool = await asyncpg.create_pool(
-        settings.SAMPLE_DATABASE_URL,
+        settings.DATABASE_URL,
         min_size=5,
         max_size=20,
         command_timeout=60
@@ -43,6 +47,20 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+class ImageSizeMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        if request.method == "POST":
+            content_length = request.headers.get("content-length")
+            if content_length and int(content_length) > settings.MAX_IMAGE_SIZE:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Image size exceeds limit of {settings.MAX_IMAGE_SIZE / 1024 / 1024}MB"
+                )
+        response = await call_next(request)
+        return response
+
+app.add_middleware(ImageSizeMiddleware)
     
 app.add_middleware(
     CORSMiddleware,
@@ -59,7 +77,6 @@ app.mount("/images", StaticFiles(directory=settings.IMAGE_ROOT), name="images")
 def read_root():
     # Get the directory of the current file
     return FileResponse(str(settings.BASE_DIR) + "/src/e_commerce_recommendation/index.html")
-
 
 @app.get("/categories")
 async def get_categories(country: str | None = Query(default=None)):
@@ -130,54 +147,19 @@ async def similar_txt(
     if not q.strip():
         return {"total": 0, "products": []}
         
-    # 1. Generate embedding for the text query
     embedding = embed_text(app.state.llm, q)
+    category_ids = [category] if category else await get_similar_categories(app.state.pool, embedding, top_k=10)
     
-    # 2. Get similar categories using vector search
-    # We use the category from query if provided, else search for similar categories
-    if category:
-        category_ids = [category]
-    else:
-        category_ids = await get_similar_categories(app.state.pool, embedding, top_k=5)
-    
-    # 3. Get similar products within those categories
-    offset = (page - 1) * limit
-    product_ids = await get_similar_products(
-        app.state.pool, 
-        embedding, 
-        categories=category_ids, 
-        top_k=limit, 
-        offset=offset
+    query, params = filter_helper(
+        categories=category_ids,
+        country=country,
+        min_price=min_price,
+        max_price=max_price,
+        best_seller=best_seller,
+        page=page,
+        limit=limit,
+        embedding=embedding
     )
-    
-    if not product_ids:
-        return {"total": 0, "products": []}
-
-    # 4. Fetch full product details maintaining similarity order
-    # Here we also apply other filters (country, price, etc.)
-    where_clauses = ["id = ANY($1)"]
-    params = [product_ids]
-    
-    if country:
-        params.append(country.lower())
-        where_clauses.append(f"country = ${len(params)}")
-    if min_price is not None:
-        params.append(min_price)
-        where_clauses.append(f"price >= ${len(params)}")
-    if max_price is not None:
-        params.append(max_price)
-        where_clauses.append(f"price <= ${len(params)}")
-    if best_seller is not None:
-        params.append(best_seller)
-        where_clauses.append(f"is_best_seller = ${len(params)}")
-        
-    query = f"""
-        SELECT id, asin, country, title, image_path, product_url,
-               stars, reviews, price, is_best_seller, bought_in_last_month, labels
-        FROM products
-        WHERE {" AND ".join(where_clauses)}
-        ORDER BY array_position($1, id)
-    """
     
     async with app.state.pool.acquire() as conn:
         rows = await conn.fetch(query, *params)
@@ -186,6 +168,103 @@ async def similar_txt(
         "total": len(rows),
         "products": [format_product(row, settings) for row in rows]
     }
+
+async def get_image_from_file(file: UploadFile) -> Image.Image:
+    import io
+    content = await file.read()
+    if len(content) > settings.MAX_IMAGE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Image size exceeds limit of {settings.MAX_IMAGE_SIZE / 1024 / 1024}MB"
+        )
+    
+    # Validate format
+    image_format = Image.open(io.BytesIO(content)).format
+    if image_format not in settings.ALLOWED_FORMATS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image format. Allowed: {', '.join(settings.ALLOWED_FORMATS)}"
+        )
+    
+    return Image.open(io.BytesIO(content))
+
+@app.post("/similar_img")
+async def similar_img(
+    image: UploadFile = File(...),
+    limit: int = Form(default=10),
+    page: int = Form(default=1),
+    category: int | None = Form(default=None),
+    country: str | None = Form(default=None),
+    min_price: float | None = Form(default=None),
+    max_price: float | None = Form(default=None),
+    best_seller: bool | None = Form(default=None),
+):
+    # 1. Generate embedding for the image
+    img = await get_image_from_file(image)
+    embedding = embed_image(app.state.llm, img)
+    
+    # 2. Get similar categories
+    category_ids = [category] if category else await get_similar_categories(app.state.pool, embedding, top_k=10)
+    
+    # 3. filtering
+    query, params = filter_helper(
+        categories=category_ids,
+        country=country,
+        min_price=min_price,
+        max_price=max_price,
+        best_seller=best_seller,
+        page=page,
+        limit=limit,
+        embedding=embedding
+    )
+    
+    async with app.state.pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
+    
+    return {
+        "total": len(rows),
+        "products": [format_product(row, settings) for row in rows]
+    }
+
+@app.post("/similar_multimodal")
+async def similar_multimodal(
+    q: str = Form(...),
+    image: UploadFile = File(...),
+    limit: int = Form(default=10),
+    page: int = Form(default=1),
+    category: int | None = Form(default=None),
+    country: str | None = Form(default=None),
+    min_price: float | None = Form(default=None),
+    max_price: float | None = Form(default=None),
+    best_seller: bool | None = Form(default=None),
+):
+    # 1. Generate multimodal embedding (Order: llm, image, text)
+    img = await get_image_from_file(image)
+    embedding = embed_multimodal(app.state.llm, img, q)
+    
+    # 2. Get similar categories
+    category_ids = [category] if category else await get_similar_categories(app.state.pool, embedding, top_k=10)
+    
+    # 3. filtering
+    query, params = filter_helper(
+        categories=category_ids,
+        country=country,
+        min_price=min_price,
+        max_price=max_price,
+        best_seller=best_seller,
+        page=page,
+        limit=limit,
+        embedding=embedding
+    )
+    
+    async with app.state.pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
+    
+    return {
+        "total": len(rows),
+        "products": [format_product(row, settings) for row in rows]
+    }
+    
 
 
 if __name__ == "__main__":

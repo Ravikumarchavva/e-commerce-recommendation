@@ -26,7 +26,7 @@ CREATE TABLE products (
   bought_in_last_month INT,
 
   labels SMALLINT[] NOT NULL,
-  embedding VECTOR(1024),
+  embedding VECTOR(2048),
 
   UNIQUE (asin, country)
 );
@@ -60,3 +60,8 @@ ALTER COLUMN embedding TYPE VECTOR(2048);
 
 
 DROP TABLE IF EXISTS category_embeddings;
+
+ALTER TABLE products SET (autovacuum_enabled = false);
+-- load
+ALTER TABLE products SET (autovacuum_enabled = true);
+VACUUM ANALYZE products;

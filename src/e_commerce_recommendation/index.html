@@ -407,15 +407,49 @@
     <div class="glass-container">
       <div id="search-tabs">
         <button class="tab" onclick="switchTab('text')">Text Search</button>
+        <button class="tab" onclick="switchTab('image')">Image Search</button>
+        <button class="tab" onclick="switchTab('visual')">Visual AI (Text + Img)</button>
         <button class="tab active" onclick="switchTab('browse')">Global Browse</button>
       </div>
 
-      <div id="text-search" style="display:none">
+      <div id="text-search" class="search-mode-container" style="display:none">
         <div class="search-box-wrapper">
           <input type="text" id="searchInput" placeholder="Search for anything... (e.g. vintage leather boots)">
-          <button class="btn-primary" onclick="searchText()">
+          <button class="btn-primary" onclick="refreshResults()">
             <span>Search</span>
           </button>
+        </div>
+      </div>
+
+      <div id="image-search" class="search-mode-container" style="display:none">
+        <div class="search-box-wrapper">
+          <div style="flex: 1; position: relative;">
+            <input type="file" id="imageInput" accept="image/*" style="display: none;"
+              onchange="updateImagePreview(this)">
+            <div id="dropzone" onclick="document.getElementById('imageInput').click()"
+              style="border: 2px dashed var(--glass-border); border-radius: 12px; padding: 12px; text-align: center; cursor: pointer; background: rgba(15, 23, 42, 0.4); display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px;">
+              <span id="file-name" style="color: var(--text-dim); font-size: 14px;">Click to upload product image</span>
+              <img id="image-preview" style="height: 30px; border-radius: 4px; display: none;">
+            </div>
+          </div>
+          <button class="btn-primary" onclick="refreshResults()">
+            <span>Visual Search</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="visual-search" class="search-mode-container" style="display:none">
+        <div class="search-box-wrapper" style="flex-direction: column;">
+          <input type="text" id="visualTextInput" placeholder="Add text context... (e.g. red color, XL size)">
+          <div style="display: flex; gap: 12px; width: 100%;">
+            <div id="dropzone-visual" onclick="document.getElementById('imageInput').click()"
+              style="flex: 1; border: 2px dashed var(--glass-border); border-radius: 12px; padding: 12px; text-align: center; cursor: pointer; background: rgba(15, 23, 42, 0.4); display: flex; align-items: center; justify-content: center; gap: 10px;">
+              <span id="file-name-visual" style="color: var(--text-dim); font-size: 14px;">Select Image</span>
+            </div>
+            <button class="btn-primary" onclick="refreshResults()">
+              <span>Combined Search</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -451,6 +485,20 @@
     let loading = false;
     let hasMore = true;
 
+    function updateImagePreview(input) {
+      const file = input.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          document.getElementById('image-preview').src = e.target.result;
+          document.getElementById('image-preview').style.display = 'block';
+          document.getElementById('file-name').textContent = file.name;
+          document.getElementById('file-name-visual').textContent = file.name;
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
     async function loadCategories(country = "") {
       try {
         let url = "/categories";
@@ -480,21 +528,17 @@
 
     function switchTab(mode) {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      // Find the button that was clicked
       const btns = [...document.querySelectorAll('.tab')];
-      if (mode === 'text') btns[0].classList.add('active');
-      else btns[1].classList.add('active');
+
+      const modes = ['text', 'image', 'visual', 'browse'];
+      const index = modes.indexOf(mode);
+      if (index !== -1) btns[index].classList.add('active');
 
       document.getElementById('text-search').style.display = mode === 'text' ? 'block' : 'none';
+      document.getElementById('image-search').style.display = mode === 'image' ? 'block' : 'none';
+      document.getElementById('visual-search').style.display = mode === 'visual' ? 'block' : 'none';
 
       currentMode = mode;
-      refreshResults();
-    }
-
-    async function searchText() {
-      const query = document.getElementById('searchInput').value.trim();
-      if (!query) return;
-      currentQuery = query;
       refreshResults();
     }
 
@@ -517,27 +561,63 @@
       const bestSeller = document.getElementById('bestSeller').checked;
 
       let url = '';
-      const baseUrl = "";
+      let options = { method: 'GET' };
 
       if (currentMode === 'text') {
-        if (!currentQuery) {
-          document.getElementById('loading').style.display = 'none';
-          loading = false;
-          return;
+        const query = document.getElementById('searchInput').value.trim();
+        if (!query) {
+          loading = false; document.getElementById('loading').style.display = 'none'; return;
         }
-        url = `${baseUrl}/similar_txt?q=${encodeURIComponent(currentQuery)}&page=${page}&limit=40`;
+        url = `/similar_txt?q=${encodeURIComponent(query)}&page=${page}&limit=40`;
+      } else if (currentMode === 'image') {
+        const fileInput = document.getElementById('imageInput');
+        if (!fileInput.files[0]) {
+          loading = false; document.getElementById('loading').style.display = 'none'; return;
+        }
+        url = `/similar_img`;
+        const formData = new FormData();
+        formData.append('image', fileInput.files[0]);
+        formData.append('page', page);
+        formData.append('limit', 40);
+        if (cat) formData.append('category', cat);
+        if (country) formData.append('country', country);
+        if (minPrice) formData.append('min_price', minPrice);
+        if (maxPrice) formData.append('max_price', maxPrice);
+        if (bestSeller) formData.append('best_seller', 'true');
+        options = { method: 'POST', body: formData };
+      } else if (currentMode === 'visual') {
+        const fileInput = document.getElementById('imageInput');
+        const query = document.getElementById('visualTextInput').value.trim();
+        if (!fileInput.files[0] || !query) {
+          loading = false; document.getElementById('loading').style.display = 'none'; return;
+        }
+        url = `/similar_multimodal`;
+        const formData = new FormData();
+        formData.append('image', fileInput.files[0]);
+        formData.append('q', query);
+        formData.append('page', page);
+        formData.append('limit', 40);
+        if (cat) formData.append('category', cat);
+        if (country) formData.append('country', country);
+        if (minPrice) formData.append('min_price', minPrice);
+        if (maxPrice) formData.append('max_price', maxPrice);
+        if (bestSeller) formData.append('best_seller', 'true');
+        options = { method: 'POST', body: formData };
       } else {
-        url = `${baseUrl}/browse?page=${page}&limit=40`;
+        url = `/browse?page=${page}&limit=40`;
       }
 
-      if (cat) url += `&category=${cat}`;
-      if (country) url += `&country=${country}`;
-      if (minPrice) url += `&min_price=${minPrice}`;
-      if (maxPrice) url += `&max_price=${maxPrice}`;
-      if (bestSeller) url += `&best_seller=true`;
+      // Add query params for GET requests
+      if (options.method === 'GET') {
+        if (cat) url += `&category=${cat}`;
+        if (country) url += `&country=${country}`;
+        if (minPrice) url += `&min_price=${minPrice}`;
+        if (maxPrice) url += `&max_price=${maxPrice}`;
+        if (bestSeller) url += `&best_seller=true`;
+      }
 
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, options);
         const data = await res.json();
 
         document.getElementById('loading').style.display = 'none';
@@ -552,9 +632,16 @@
           page++;
         }
 
-        if (currentMode === 'text' && page === 2) {
-          document.getElementById('results-info').innerHTML = `Found ${data.total || 'many'} results for "${currentQuery}"`;
-          document.getElementById('results-info').style.display = 'block';
+        if (page === 2) {
+          let msg = "";
+          if (currentMode === 'text') msg = `Found ${data.total || 'many'} matches for "${document.getElementById('searchInput').value}"`;
+          else if (currentMode === 'image') msg = `Showing visually similar products`;
+          else if (currentMode === 'visual') msg = `Combined search: "${document.getElementById('visualTextInput').value}" + Image`;
+
+          if (msg) {
+            document.getElementById('results-info').innerHTML = msg;
+            document.getElementById('results-info').style.display = 'block';
+          }
         } else if (currentMode === 'browse') {
           document.getElementById('results-info').style.display = 'none';
         }
